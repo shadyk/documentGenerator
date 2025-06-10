@@ -187,7 +187,8 @@ if __name__ == '__main__':
     os.makedirs(app.config['TEMPLATE_DIR'], exist_ok=True)
     os.makedirs('data', exist_ok=True)
     
-    # Cloud deployment configuration
+    # Get port from environment variable
     port = int(os.environ.get('PORT', 5000))
-    debug_mode = os.environ.get('FLASK_ENV', 'development') == 'development'
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    
+    # Run the app - MUST use host='0.0.0.0' for Render
+    app.run(host='0.0.0.0', port=port, debug=False)
