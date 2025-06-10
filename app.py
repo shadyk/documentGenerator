@@ -1,6 +1,5 @@
 # At the top of app.py
 DEBUG = False  # Change to False in production
-SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here')  # Use environment variable
 
 from flask import Flask, render_template, request, send_from_directory, flash, redirect, url_for
 import os
