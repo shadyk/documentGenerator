@@ -88,88 +88,85 @@ def clean_dataframe_dates(df):
     
     return df
 
-def replace_text_in_paragraph(paragraph, old_text, new_text):
-    """Replace text while preserving original formatting"""
-    full_text = "".join(run.text for run in paragraph.runs)
-    if old_text in full_text:
-        # Store original formatting from the first run that has text
-        original_font = None
-        for run in paragraph.runs:
-            if run.text.strip():
-                original_font = run.font
-                break
-        
-        # Replace text
-        full_text = full_text.replace(old_text, new_text)
-        
-        # Clear all runs
-        for run in paragraph.runs:
-            run.text = ""
-        
-        # Add new run with preserved formatting
-        new_run = paragraph.add_run(full_text)
-        if original_font:
-            new_run.font.name = original_font.name
-            new_run.font.size = original_font.size
-            new_run.font.bold = original_font.bold
-            new_run.font.italic = original_font.italic
-            new_run.font.underline = original_font.underline
-            if original_font.color and original_font.color.rgb:
-                new_run.font.color.rgb = original_font.color.rgb
+def set_font_safely(run, font_name):
+    """Safely set font with compatibility for different python-docx versions"""
+    # Basic font setting (always available)
+    run.font.name = font_name
+    
+    # Try complex script font (for Arabic) - might not be available in older versions
+    try:
+        run.font.cs_font = font_name
+    except AttributeError:
+        print(f"cs_font not available, using basic font setting only")
+    
+    # Try east asian font - might not be available in older versions
+    try:
+        run.font.east_asian_font = font_name
+    except AttributeError:
+        print(f"east_asian_font not available, using basic font setting only")
+    
+    # Try setting theme font to None
+    try:
+        run.font.theme_font = None
+    except AttributeError:
+        pass
+    
+    # Set font using lower-level XML (most reliable method)
+    try:
+        from docx.oxml.shared import qn
+        rPr = run._element.get_or_add_rPr()
+        ascii_font = rPr.find(qn('w:rFonts'))
+        if ascii_font is None:
+            ascii_font = rPr.add_child(qn('w:rFonts'))
+        ascii_font.set(qn('w:ascii'), font_name)
+        ascii_font.set(qn('w:hAnsi'), font_name)
+        ascii_font.set(qn('w:cs'), font_name)
+        ascii_font.set(qn('w:eastAsia'), font_name)
+        print(f"Successfully set font using XML method: {font_name}")
+    except Exception as e:
+        print(f"Could not set low-level font: {e}")
 
-def replace_text_in_paragraph_advanced(paragraph, old_text, new_text):
-    """Advanced text replacement that enforces a reliable Arabic/English font"""
-    full_text = "".join(run.text for run in paragraph.runs)
-    if old_text not in full_text:
-        return
+def force_paragraph_font(paragraph, font_name='Adobe Arabic'):
+    """Force a specific font on an entire paragraph while preserving original size"""
+    # Get all text from the paragraph
+    full_text = paragraph.text
     
-    # Find the run that contains the start of old_text
-    char_index = 0
-    target_run_index = -1
+    # Store paragraph-level formatting
+    paragraph_format = paragraph.paragraph_format
+    alignment = paragraph_format.alignment
     
-    for i, run in enumerate(paragraph.runs):
-        if char_index <= full_text.find(old_text) < char_index + len(run.text):
-            target_run_index = i
+    # Capture original font size from the first run with content
+    original_size = None
+    original_bold = None
+    original_italic = None
+    original_underline = None
+    original_color = None
+    
+    for run in paragraph.runs:
+        if run.text.strip():  # First run with actual text
+            original_size = run.font.size
+            original_bold = run.font.bold
+            original_italic = run.font.italic
+            original_underline = run.font.underline
+            if run.font.color and run.font.color.rgb:
+                original_color = run.font.color.rgb
             break
-        char_index += len(run.text)
     
-    if target_run_index >= 0:
-        target_run = paragraph.runs[target_run_index]
-        
-        # Store original formatting (but we'll force a reliable font)
-        original_font_size = target_run.font.size
-        original_bold = target_run.font.bold
-        original_italic = target_run.font.italic
-        original_underline = target_run.font.underline
-        original_color = target_run.font.color.rgb if target_run.font.color and target_run.font.color.rgb else None
-        
-        # Replace using simple method
-        full_text = full_text.replace(old_text, new_text)
-        
-        # Clear all runs
-        for run in paragraph.runs:
-            run.text = ""
-        
-        # Add new run with preserved formatting + reliable font
+    # Clear all runs
+    for run in paragraph.runs[:]:
+        paragraph._element.remove(run._element)
+    
+    # Create one new run with the entire text
+    if full_text.strip():  # Only if there's actual text
         new_run = paragraph.add_run(full_text)
         
-        # Try fonts in order of preference (most reliable first)
-        font_options = [
-            'Tahoma',           # Excellent Arabic/English support, widely available
-            'Arial Unicode MS', # Good fallback, supports Arabic well
-            'Calibri',          # Modern, good Arabic support
-            'Times New Roman',  # Classic, reliable Arabic support
-            'Segoe UI',         # Modern Windows font with Arabic
-            'Arial'             # Ultimate fallback
-        ]
+        # Set font safely with compatibility handling
+        set_font_safely(new_run, font_name)
         
-        # Use the first available font (Tahoma is usually the best choice)
-        preferred_font = font_options[0]  # Tahoma
-        new_run.font.name = preferred_font
-        
-        # Apply other preserved formatting
-        if original_font_size:
-            new_run.font.size = original_font_size
+        # PRESERVE ORIGINAL FORMATTING
+        if original_size:
+            new_run.font.size = original_size
+            print(f"Preserved font size: {original_size}")
         if original_bold is not None:
             new_run.font.bold = original_bold
         if original_italic is not None:
@@ -178,33 +175,34 @@ def replace_text_in_paragraph_advanced(paragraph, old_text, new_text):
             new_run.font.underline = original_underline
         if original_color:
             new_run.font.color.rgb = original_color
-            
-        # Set complex script font for Arabic text (important for RTL languages)
-        new_run.font.cs_font = preferred_font
         
-        print(f"Applied font: {preferred_font} to text: '{new_text[:30]}...'")
+        # Restore paragraph alignment
+        paragraph_format.alignment = alignment
+        
+        size_info = f" (size: {original_size})" if original_size else ""
+        print(f"Forced font '{font_name}'{size_info} on paragraph: '{full_text[:50]}...'")
 
-# Alternative function if you want to specify a different font
-def replace_text_with_custom_font(paragraph, old_text, new_text, font_name='Times New Roman'):
-    """Replace text with a specific font and ensure consistent formatting"""
+def replace_text_with_custom_font(paragraph, old_text, new_text, font_name='Adobe Arabic'):
+    """Replace text with a specific font and ensure consistent formatting while preserving size"""
     full_text = "".join(run.text for run in paragraph.runs)
     if old_text not in full_text:
         return
     
     # Store the original paragraph formatting
     paragraph_format = paragraph.paragraph_format
+    alignment = paragraph_format.alignment
     
-    # Get the first run's formatting as baseline
+    # Get the first run's formatting as baseline - IMPROVED VERSION
     baseline_run = None
     for run in paragraph.runs:
         if run.text.strip():
             baseline_run = run
             break
     
-    if not baseline_run:
-        baseline_run = paragraph.runs[0] if paragraph.runs else None
+    if not baseline_run and paragraph.runs:
+        baseline_run = paragraph.runs[0]
     
-    # Store formatting properties
+    # Store formatting properties with better defaults
     if baseline_run:
         original_size = baseline_run.font.size
         original_bold = baseline_run.font.bold
@@ -212,13 +210,21 @@ def replace_text_with_custom_font(paragraph, old_text, new_text, font_name='Time
         original_underline = baseline_run.font.underline
         original_color = baseline_run.font.color.rgb if baseline_run.font.color and baseline_run.font.color.rgb else None
     else:
-        # Default formatting
+        # Better default formatting - try to get from paragraph style
         from docx.shared import Pt
-        original_size = Pt(12)
+        original_size = Pt(12)  # Default size
         original_bold = False
         original_italic = False
         original_underline = False
         original_color = None
+        
+        # Try to get size from paragraph style
+        try:
+            if paragraph.style and paragraph.style.font and paragraph.style.font.size:
+                original_size = paragraph.style.font.size
+                print(f"Using paragraph style font size: {original_size}")
+        except:
+            pass
     
     # Replace text
     full_text = full_text.replace(old_text, new_text)
@@ -230,14 +236,13 @@ def replace_text_with_custom_font(paragraph, old_text, new_text, font_name='Time
     # Create a single new run with consistent formatting
     new_run = paragraph.add_run(full_text)
     
-    # Apply consistent font and formatting
-    new_run.font.name = font_name
-    new_run.font.cs_font = font_name  # Complex script font for Arabic
-    new_run.font.east_asian_font = font_name  # East Asian font
+    # Apply font using safe method
+    set_font_safely(new_run, font_name)
     
-    # Apply preserved formatting
+    # PRESERVE ORIGINAL FORMATTING - this is the key fix
     if original_size:
         new_run.font.size = original_size
+        print(f"Preserved original font size: {original_size} for text: '{new_text[:30]}...'")
     if original_bold is not None:
         new_run.font.bold = original_bold
     if original_italic is not None:
@@ -247,50 +252,49 @@ def replace_text_with_custom_font(paragraph, old_text, new_text, font_name='Time
     if original_color:
         new_run.font.color.rgb = original_color
     
-    print(f"Applied consistent font '{font_name}' to: '{new_text[:50]}...'")
+    # Restore alignment
+    paragraph_format.alignment = alignment
+    
+    size_info = f" (size: {original_size})" if original_size else ""
+    print(f"Applied font '{font_name}'{size_info} to: '{new_text[:50]}...'")
 
-def apply_consistent_font_to_document(doc, font_name='Times New Roman'):
-    """Apply consistent font to entire document after all replacements"""
-    print(f"Applying consistent font '{font_name}' to entire document...")
+def nuclear_font_fix(doc, font_name='Adobe Arabic'):
+    """Nuclear option: completely rebuild document with consistent font"""
+    print(f"NUCLEAR FONT FIX: Rebuilding entire document with '{font_name}'...")
     
-    # Apply to all paragraphs
+    # Process every single paragraph
     for paragraph in doc.paragraphs:
-        for run in paragraph.runs:
-            if run.text.strip():  # Only apply to runs with actual text
-                run.font.name = font_name
-                run.font.cs_font = font_name
-                run.font.east_asian_font = font_name
+        if paragraph.text.strip():  # Only process paragraphs with text
+            force_paragraph_font(paragraph, font_name)
     
-    # Apply to tables
+    # Process tables
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for paragraph in cell.paragraphs:
-                    for run in paragraph.runs:
-                        if run.text.strip():
-                            run.font.name = font_name
-                            run.font.cs_font = font_name
-                            run.font.east_asian_font = font_name
+                    if paragraph.text.strip():
+                        force_paragraph_font(paragraph, font_name)
     
-    # Apply to headers and footers
+    # Process headers and footers
     for section in doc.sections:
-        # Header
-        for paragraph in section.header.paragraphs:
-            for run in paragraph.runs:
-                if run.text.strip():
-                    run.font.name = font_name
-                    run.font.cs_font = font_name
-                    run.font.east_asian_font = font_name
-        
-        # Footer
-        for paragraph in section.footer.paragraphs:
-            for run in paragraph.runs:
-                if run.text.strip():
-                    run.font.name = font_name
-                    run.font.cs_font = font_name
-                    run.font.east_asian_font = font_name
+        try:
+            for paragraph in section.header.paragraphs:
+                if paragraph.text.strip():
+                    force_paragraph_font(paragraph, font_name)
+        except:
+            pass
+            
+        try:
+            for paragraph in section.footer.paragraphs:
+                if paragraph.text.strip():
+                    force_paragraph_font(paragraph, font_name)
+        except:
+            pass
     
-    print(f"Consistent font '{font_name}' applied to entire document.")
+    print(f"NUCLEAR FONT FIX COMPLETED with '{font_name}'")
+
+# Configuration for production - fallback fonts in case Adobe Arabic isn't available
+PREFERRED_ARABIC_FONT = 'Times New Roman'  # More universally available than Adobe Arabic
 
 def fill_template(template_path, data_row, output_path):
     if not os.path.exists(template_path):
@@ -409,265 +413,11 @@ def fill_template(template_path, data_row, output_path):
     
     print("=== END TEMPLATE FILLING DEBUG ===")
     
-    doc.save(output_path)
-    return True, output_path
-    
-    print(f"Total replacements made: {replacements_made}")
-    
-    # Handle "Today" placeholder with Arabic date
-    today = datetime.today()
-    day = convert_to_eastern_arabic(today.day)
-    month_name = arabic_months[today.strftime("%B")]
-    year = convert_to_eastern_arabic(today.year)
-    arabic_date = f"{day} {month_name} {year}"
-    
-    print(f"Replacing 'Today' with '{arabic_date}'")
-    
-    # Replace "Today" in all locations
-    for paragraph in doc.paragraphs:
-        if "Today" in paragraph.text:
-            replace_text_with_custom_font(paragraph, "Today", arabic_date, preferred_font)
-    
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    if "Today" in paragraph.text:
-                        replace_text_with_custom_font(paragraph, "Today", arabic_date, preferred_font)
-    
-    for section in doc.sections:
-        # Header
-        for paragraph in section.header.paragraphs:
-            if "Today" in paragraph.text:
-                replace_text_with_custom_font(paragraph, "Today", arabic_date, preferred_font)
-        
-        # Footer
-        for paragraph in section.footer.paragraphs:
-            if "Today" in paragraph.text:
-                replace_text_with_custom_font(paragraph, "Today", arabic_date, preferred_font)
-    
-    # FINAL STEP: Apply consistent font to entire document
-    apply_consistent_font_to_document(doc, preferred_font)
-    
-    print("=== END TEMPLATE FILLING DEBUG ===")
-    
-    doc.save(output_path)
-    return True, output_path
-
-def nuclear_font_fix(doc, font_name='Adobe Arabic'):
-    """Nuclear option: completely rebuild document with consistent font"""
-    print(f"NUCLEAR FONT FIX: Rebuilding entire document with '{font_name}'...")
-    
-    # Process every single paragraph
-    for paragraph in doc.paragraphs:
-        if paragraph.text.strip():  # Only process paragraphs with text
-            force_paragraph_font(paragraph, font_name)
-    
-    # Process tables
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    if paragraph.text.strip():
-                        force_paragraph_font(paragraph, font_name)
-    
-    # Process headers and footers
-    for section in doc.sections:
-        try:
-            for paragraph in section.header.paragraphs:
-                if paragraph.text.strip():
-                    force_paragraph_font(paragraph, font_name)
-        except:
-            pass
-            
-        try:
-            for paragraph in section.footer.paragraphs:
-                if paragraph.text.strip():
-                    force_paragraph_font(paragraph, font_name)
-        except:
-            pass
-    
-    print(f"NUCLEAR FONT FIX COMPLETED with '{font_name}'")
-
-def force_paragraph_font(paragraph, font_name='Adobe Arabic'):
-    """Force a specific font on an entire paragraph while preserving original size"""
-    # Get all text from the paragraph
-    full_text = paragraph.text
-    
-    # Store paragraph-level formatting
-    paragraph_format = paragraph.paragraph_format
-    alignment = paragraph_format.alignment
-    
-    # Capture original font size from the first run with content
-    original_size = None
-    original_bold = None
-    original_italic = None
-    original_underline = None
-    original_color = None
-    
-    for run in paragraph.runs:
-        if run.text.strip():  # First run with actual text
-            original_size = run.font.size
-            original_bold = run.font.bold
-            original_italic = run.font.italic
-            original_underline = run.font.underline
-            if run.font.color and run.font.color.rgb:
-                original_color = run.font.color.rgb
-            break
-    
-    # Clear all runs
-    for run in paragraph.runs[:]:
-        paragraph._element.remove(run._element)
-    
-    # Create one new run with the entire text
-    if full_text.strip():  # Only if there's actual text
-        new_run = paragraph.add_run(full_text)
-        
-        # Set font using multiple methods to ensure it sticks
-        new_run.font.name = font_name
-        new_run.font.cs_font = font_name  # Complex script (Arabic)
-        new_run.font.east_asian_font = font_name  # East Asian
-        
-        # PRESERVE ORIGINAL FORMATTING
-        if original_size:
-            new_run.font.size = original_size
-            print(f"Preserved font size: {original_size}")
-        if original_bold is not None:
-            new_run.font.bold = original_bold
-        if original_italic is not None:
-            new_run.font.italic = original_italic
-        if original_underline is not None:
-            new_run.font.underline = original_underline
-        if original_color:
-            new_run.font.color.rgb = original_color
-        
-        # Try setting the theme font as well
-        try:
-            new_run.font.theme_font = None  # Disable theme font
-        except:
-            pass
-            
-        # Set font using lower-level XML if available
-        try:
-            from docx.oxml.shared import qn
-            rPr = new_run._element.get_or_add_rPr()
-            # ASCII font
-            ascii_font = rPr.find(qn('w:rFonts'))
-            if ascii_font is None:
-                ascii_font = rPr.add_child(qn('w:rFonts'))
-            ascii_font.set(qn('w:ascii'), font_name)
-            ascii_font.set(qn('w:hAnsi'), font_name)
-            ascii_font.set(qn('w:cs'), font_name)  # Complex script
-            ascii_font.set(qn('w:eastAsia'), font_name)  # East Asian
-        except Exception as e:
-            print(f"Could not set low-level font: {e}")
-        
-        # Restore paragraph alignment
-        paragraph_format.alignment = alignment
-        
-        size_info = f" (size: {original_size})" if original_size else ""
-        print(f"Forced font '{font_name}'{size_info} on paragraph: '{full_text[:50]}...'")
-
-def replace_text_with_custom_font(paragraph, old_text, new_text, font_name='Adobe Arabic'):
-    """Replace text with a specific font and ensure consistent formatting while preserving size"""
-    full_text = "".join(run.text for run in paragraph.runs)
-    if old_text not in full_text:
-        return
-    
-    # Store the original paragraph formatting
-    paragraph_format = paragraph.paragraph_format
-    alignment = paragraph_format.alignment
-    
-    # Get the first run's formatting as baseline - IMPROVED VERSION
-    baseline_run = None
-    for run in paragraph.runs:
-        if run.text.strip():
-            baseline_run = run
-            break
-    
-    if not baseline_run and paragraph.runs:
-        baseline_run = paragraph.runs[0]
-    
-    # Store formatting properties with better defaults
-    if baseline_run:
-        original_size = baseline_run.font.size
-        original_bold = baseline_run.font.bold
-        original_italic = baseline_run.font.italic
-        original_underline = baseline_run.font.underline
-        original_color = baseline_run.font.color.rgb if baseline_run.font.color and baseline_run.font.color.rgb else None
-    else:
-        # Better default formatting - try to get from paragraph style
-        from docx.shared import Pt
-        original_size = Pt(12)  # Default size
-        original_bold = False
-        original_italic = False
-        original_underline = False
-        original_color = None
-        
-        # Try to get size from paragraph style
-        try:
-            if paragraph.style and paragraph.style.font and paragraph.style.font.size:
-                original_size = paragraph.style.font.size
-                print(f"Using paragraph style font size: {original_size}")
-        except:
-            pass
-    
-    # Replace text
-    full_text = full_text.replace(old_text, new_text)
-    
-    # Clear all runs
-    for run in paragraph.runs[:]:
-        paragraph._element.remove(run._element)
-    
-    # Create a single new run with consistent formatting
-    new_run = paragraph.add_run(full_text)
-    
-    # Apply font using multiple methods
-    new_run.font.name = font_name
-    new_run.font.cs_font = font_name  # Complex script font for Arabic
-    new_run.font.east_asian_font = font_name  # East Asian font
-    
-    # PRESERVE ORIGINAL FORMATTING - this is the key fix
-    if original_size:
-        new_run.font.size = original_size
-        print(f"Preserved original font size: {original_size} for text: '{new_text[:30]}...'")
-    if original_bold is not None:
-        new_run.font.bold = original_bold
-    if original_italic is not None:
-        new_run.font.italic = original_italic
-    if original_underline is not None:
-        new_run.font.underline = original_underline
-    if original_color:
-        new_run.font.color.rgb = original_color
-    
-    # Try setting theme font to None
     try:
-        new_run.font.theme_font = None
-    except:
-        pass
-    
-    # Set font using lower-level XML
-    try:
-        from docx.oxml.shared import qn
-        rPr = new_run._element.get_or_add_rPr()
-        ascii_font = rPr.find(qn('w:rFonts'))
-        if ascii_font is None:
-            ascii_font = rPr.add_child(qn('w:rFonts'))
-        ascii_font.set(qn('w:ascii'), font_name)
-        ascii_font.set(qn('w:hAnsi'), font_name)
-        ascii_font.set(qn('w:cs'), font_name)
-        ascii_font.set(qn('w:eastAsia'), font_name)
+        doc.save(output_path)
+        return True, output_path
     except Exception as e:
-        print(f"Could not set low-level font: {e}")
-    
-    # Restore alignment
-    paragraph_format.alignment = alignment
-    
-    size_info = f" (size: {original_size})" if original_size else ""
-    print(f"Applied font '{font_name}'{size_info} to: '{new_text[:50]}...'")
-
-# Keep Adobe Arabic as the preferred font
-PREFERRED_ARABIC_FONT = 'Adobe Arabic'
+        return False, f"Error saving document: {str(e)}"
 
 def load_data():
     try:
@@ -748,7 +498,6 @@ def generate_document():
         success, message = fill_template(template_path, selected_row, output_path)
         
         if success:
-#            flash(f"تم إنشاء الملف: {filename}", "success")
             return send_from_directory(app.config['OUTPUT_DIR'], filename, as_attachment=True)
         else:
             flash(message, "error")
@@ -788,7 +537,7 @@ if __name__ == '__main__':
     os.makedirs(app.config['TEMPLATE_DIR'], exist_ok=True)
     os.makedirs('data', exist_ok=True)
     
-    # Get port from environment variable
+    # Get port from environment variable (Render sets this automatically)
     port = int(os.environ.get('PORT', 5000))
     
     # Run the app - MUST use host='0.0.0.0' for Render
