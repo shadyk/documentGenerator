@@ -89,29 +89,12 @@ def clean_dataframe_dates(df):
     return df
 
 def set_font_safely(run, font_name):
-    """Safely set font with compatibility for different python-docx versions"""
+    """Safely set font with compatibility for python-docx 0.8.11"""
     # Basic font setting (always available)
     run.font.name = font_name
     
-    # Try complex script font (for Arabic) - might not be available in older versions
-    try:
-        run.font.cs_font = font_name
-    except AttributeError:
-        print(f"cs_font not available, using basic font setting only")
-    
-    # Try east asian font - might not be available in older versions
-    try:
-        run.font.east_asian_font = font_name
-    except AttributeError:
-        print(f"east_asian_font not available, using basic font setting only")
-    
-    # Try setting theme font to None
-    try:
-        run.font.theme_font = None
-    except AttributeError:
-        pass
-    
-    # Set font using lower-level XML (most reliable method)
+    # In python-docx 0.8.11, cs_font and east_asian_font might not be available
+    # So we'll use the XML method which is more reliable
     try:
         from docx.oxml.shared import qn
         rPr = run._element.get_or_add_rPr()
@@ -124,7 +107,7 @@ def set_font_safely(run, font_name):
         ascii_font.set(qn('w:eastAsia'), font_name)
         print(f"Successfully set font using XML method: {font_name}")
     except Exception as e:
-        print(f"Could not set low-level font: {e}")
+        print(f"Could not set low-level font, using basic method only: {e}")
 
 def force_paragraph_font(paragraph, font_name='Adobe Arabic'):
     """Force a specific font on an entire paragraph while preserving original size"""
