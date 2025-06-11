@@ -43,6 +43,51 @@ def convert_to_eastern_arabic(number):
     }
     return "".join(eastern_arabic_digits[digit] for digit in str(number))
 
+def clean_date_value(value):
+    """Clean date values to remove unwanted time components"""
+    if pd.isna(value) or value == '':
+        return ''
+    
+    # If it's already a string and doesn't contain time info, return as is
+    if isinstance(value, str):
+        # Check if it looks like a date with time (contains time component)
+        if ' 00:00:00' in value:
+            return value.replace(' 00:00:00', '')
+        return value
+    
+    # If it's a datetime object, format it as date only
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return value.strftime('%Y-%m-%d')
+    
+    # If it's a date object
+    if hasattr(value, 'strftime'):
+        return value.strftime('%Y-%m-%d')
+    
+    # For any other type, convert to string and clean
+    str_value = str(value)
+    if ' 00:00:00' in str_value:
+        return str_value.replace(' 00:00:00', '')
+    
+    return str_value
+
+def clean_dataframe_dates(df):
+    """Clean all date columns in the dataframe"""
+    # List of common date column names (adjust based on your Excel structure)
+    date_columns = ['date', 'Date', 'birth_date', 'Birth Date', 'baptism_date', 'Baptism Date', 
+                   'marriage_date', 'Marriage Date', 'created_date', 'updated_date']
+    
+    # Also check for columns that might contain dates based on data type
+    for col in df.columns:
+        # Check if column name suggests it's a date
+        col_lower = col.lower()
+        is_date_column = any(date_word in col_lower for date_word in ['date', 'birth', 'baptism', 'marriage', 'created', 'updated'])
+        
+        # Or check if the column contains datetime-like data
+        if is_date_column or df[col].dtype == 'datetime64[ns]':
+            df[col] = df[col].apply(clean_date_value)
+    
+    return df
+
 def replace_text_in_paragraph(paragraph, old_text, new_text):
     full_text = "".join(run.text for run in paragraph.runs)
     if old_text in full_text:
@@ -62,9 +107,11 @@ def fill_template(template_path, data_row, output_path):
     
     for key, value in data_row.items():
         key = key.strip()
+        # Clean the value if it's a date
+        clean_value = clean_date_value(value)
         for paragraph in doc.paragraphs:
             if f'{{{key}}}' in paragraph.text:
-                paragraph.text = paragraph.text.replace(f'{{{key}}}', str(value))
+                paragraph.text = paragraph.text.replace(f'{{{key}}}', str(clean_value))
     
     today = datetime.today()
     day = convert_to_eastern_arabic(today.day)
@@ -82,8 +129,14 @@ def load_data():
     try:
         df = pd.read_excel(app.config['EXCEL_FILE'], header=1)
         df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-        # Convert all values to strings and handle NaN/None values
-        df = df.fillna('').astype(str)
+        # Handle NaN/None values first
+        df = df.fillna('')
+        
+        # Clean date columns before converting to strings
+        df = clean_dataframe_dates(df)
+        
+        # Convert all values to strings
+        df = df.astype(str)
         return df
     except Exception as e:
         app.logger.error(f"Error loading Excel file: {e}")
@@ -117,9 +170,20 @@ def index():
 @app.route('/generate', methods=['POST'])
 def generate_document():
     try:
+        # Debug all form data
+        print("=== FLASK DEBUG ===")
+        print("request.form:", dict(request.form))
+        print("request.form.keys():", list(request.form.keys()))
+        print("Raw form data:")
+        for key in request.form.keys():
+            print(f"  {key}: '{request.form.get(key)}' (type: {type(request.form.get(key))})")
+        
         row_index = int(request.form.get('row_index'))
         doc_type = request.form.get('doc_type')
         
+        print(f"Extracted: row_index = {row_index}, doc_type = '{doc_type}'")
+        print("=== END FLASK DEBUG ===")
+
         df = load_data()
         if df.empty:
             flash("Error loading Excel file", "error")
@@ -128,6 +192,8 @@ def generate_document():
         selected_row = df.iloc[row_index]
         is_male = get_gender_value(selected_row)
         
+        print(f"DEBUG: is_male = {is_male}, selected_row gender = {selected_row.get('Gender', 'N/A')}")
+
         # Determine template and filename
         if doc_type == 'baptism':
             template = 'baptisim_template_m.docx' if is_male else 'baptisim_template_f.docx'
@@ -191,4 +257,4 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     
     # Run the app - MUST use host='0.0.0.0' for Render
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=True)
