@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة الوثائق</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Tahoma', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            padding: 30px;
+            text-align: center;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .search-section {
+            padding: 30px;
+            background: #f8f9ff;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 50px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+
+        .search-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 172, 254, 0.3);
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .data-grid {
+            display: grid;
+            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        }
+
+        .data-card {
+            background: white;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .data-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            border-color: #4facfe;
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .data-row:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .data-label {
+            font-weight: 600;
+            color: #4a5568;
+            min-width: 100px;
+            margin-left: 15px;
+        }
+
+        .data-value {
+            flex: 1;
+            word-wrap: break-word;
+            word-break: break-word;
+            line-height: 1.5;
+            color: #2d3748;
+        }
+
+        .card-actions {
+            padding: 20px;
+            background: #f8f9ff;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            flex: 1;
+            min-width: 140px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 25px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .baptism-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .baptism-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .release-btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .release-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 172, 254, 0.3);
+        }
+
+        .flash-messages {
+            margin: 20px 0;
+        }
+
+        .flash-message {
+            padding: 15px 20px;
+            margin: 10px 0;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .no-data h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .search-form {
+                flex-direction: column;
+            }
+
+            .search-btn {
+                align-self: center;
+                width: 200px;
+            }
+
+            .data-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .data-row {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .data-label {
+                min-width: auto;
+                margin-left: 0;
+                margin-bottom: 5px;
+            }
+
+            .card-actions {
+                flex-direction: column;
+            }
+
+            .action-btn {
+                min-width: auto;
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .search-section,
+            .content {
+                padding: 20px;
+            }
+
+            .card-body,
+            .card-actions {
+                padding: 15px;
+            }
+        }
+
+        /* Animations */
+        .data-card {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>نظام إدارة الوثائق</h1>
+            <p>إنشاء وإدارة وثائق المعمودية وإطلاق الحال</p>
+        </header>
+
+        <section class="search-section">
+            <form method="POST" class="search-form">
+                <input type="text" 
+                       name="search" 
+                       value="{{ search_term or '' }}" 
+                       placeholder="البحث في البيانات..." 
+                       class="search-input">
+                <button type="submit" class="search-btn">🔍 بحث</button>
+            </form>
+        </section>
+
+        <main class="content">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="flash-message flash-{{ category }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Data Display -->
+            {% if rows %}
+                <div class="data-grid">
+                    {% for row in rows %}
+                        <div class="data-card" style="animation-delay: {{ loop.index0 * 0.1 }}s">
+                            <div class="card-header">
+                                سجل رقم {{ loop.index }}
+                            </div>
+                            
+                            <div class="card-body">
+                                {% for key, value in row.items() %}
+                                    {% if value and value != 'nan' and value != '' %}
+                                        <div class="data-row">
+                                            <div class="data-label">{{ key }}:</div>
+                                            <div class="data-value">{{ value }}</div>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="card-actions">
+                                <form method="POST" action="/generate" class="action-form">
+                                    <input type="hidden" name="row_index" value="{{ loop.index0 }}">
+                                    <button type="submit" name="doc_type" value="baptism" class="action-btn baptism-btn" title="إنشاء وثيقة معمودية" onclick="console.log('Baptism button clicked')">
+                                        📜 إنشاء وثيقة معمودية
+                                    </button>
+                                    <button type="submit" name="doc_type" value="release" class="action-btn release-btn" title="إنشاء وثيقة إطلاق حال" onclick="console.log('Release button clicked')">
+                                        📋 إنشاء وثيقة إطلاق حال
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-data">
+                    <h3>لا توجد بيانات متاحة</h3>
+                    <p>تأكد من وجود ملف البيانات في المسار الصحيح</p>
+                </div>
+            {% endif %}
+        </main>
+    </div>
+
+    <script>
+        // Add loading animation when document generation forms are submitted
+        document.querySelectorAll('.action-form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                // Get the button that was clicked
+                const clickedButton = e.submitter;
+                if (clickedButton && clickedButton.classList.contains('action-btn')) {
+                    // Don't disable immediately - let the form submit first
+                    setTimeout(() => {
+                        // Store original content
+                        clickedButton.dataset.originalText = clickedButton.innerHTML;
+                        clickedButton.innerHTML = '<div class="loading-spinner"></div> جاري المعالجة...';
+                        clickedButton.disabled = true;
+                        
+                        // Reset button after a timeout (in case of errors)
+                        setTimeout(() => {
+                            if (clickedButton.disabled) {
+                                clickedButton.innerHTML = clickedButton.dataset.originalText;
+                                clickedButton.disabled = false;
+                            }
+                        }, 15000); // 15 seconds timeout
+                    }, 100); // Small delay to let form submit first
+                }
+            });
+        });
+
+        // Handle search form normally
+        document.querySelector('.search-form').addEventListener('submit', function(e) {
+            const button = this.querySelector('.search-btn');
+            if (button) {
+                setTimeout(() => {
+                    button.innerHTML = '🔍 جاري البحث...';
+                    button.disabled = true;
+                }, 100);
+            }
+        });
+
+        // Smooth scroll for better UX
+        document.documentElement.style.scrollBehavior = 'smooth';
+
+        // Add ripple effect to buttons (only on mousedown, not interfering with submission)
+        document.querySelectorAll('.action-btn, .search-btn').forEach(button => {
+            button.addEventListener('mousedown', function(e) {
+                // Only add ripple if button is not disabled
+                if (this.disabled) return;
+                
+                const ripple = document.createElement('span');
+                const rect = this.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const x = e.clientX - rect.left - size / 2;
+                const y = e.clientY - rect.top - size / 2;
+                
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = x + 'px';
+                ripple.style.top = y + 'px';
+                ripple.classList.add('ripple');
+                
+                this.appendChild(ripple);
+                
+                setTimeout(() => {
+                    ripple.remove();
+                }, 600);
+            });
+        });
+
+        // Reset buttons when page loads (in case user navigated back)
+        window.addEventListener('pageshow', function() {
+            document.querySelectorAll('button[disabled]').forEach(button => {
+                if (button.dataset.originalText) {
+                    button.innerHTML = button.dataset.originalText;
+                    button.disabled = false;
+                }
+            });
+        });
+
+        // Debug: Log form submissions with more detail
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                const formData = new FormData(this);
+                const data = {};
+                for (let [key, value] of formData.entries()) {
+                    data[key] = value;
+                }
+                console.log('=== FORM SUBMISSION DEBUG ===');
+                console.log('Action:', this.action);
+                console.log('Method:', this.method);
+                console.log('Submitter button:', e.submitter);
+                console.log('Button name:', e.submitter ? e.submitter.name : 'none');
+                console.log('Button value:', e.submitter ? e.submitter.value : 'none');
+                console.log('Button disabled:', e.submitter ? e.submitter.disabled : 'unknown');
+                console.log('All form data:', data);
+                console.log('Raw FormData entries:');
+                for (let [key, value] of formData.entries()) {
+                    console.log(`  ${key}: ${value}`);
+                }
+                console.log('=== END DEBUG ===');
+            });
+        });
+    </script>
+
+    <style>
+        /* Ripple effect */
+        .action-btn, .search-btn {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0);
+            animation: ripple-animation 0.6s linear;
+            pointer-events: none;
+        }
+
+        @keyframes ripple-animation {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+    </style>
+</body>
+</html>

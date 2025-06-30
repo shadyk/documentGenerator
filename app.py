@@ -439,9 +439,21 @@ def index():
                 lambda row: row.str.contains(search_term, case=False).any(),
                 axis=1
             )
-            rows = df[filtered_rows].to_dict('records')
+            # FIXED: Store the filtered dataframe AND the original indices
+            filtered_df = df[filtered_rows]
+            rows = []
+            for idx, (original_idx, row) in enumerate(filtered_df.iterrows()):
+                row_dict = row.to_dict()
+                row_dict['_original_index'] = original_idx  # Store original index
+                row_dict['_display_index'] = idx  # Store display index
+                rows.append(row_dict)
         else:
-            rows = df.to_dict('records')
+            rows = []
+            for idx, (original_idx, row) in enumerate(df.iterrows()):
+                row_dict = row.to_dict()
+                row_dict['_original_index'] = original_idx
+                row_dict['_display_index'] = idx
+                rows.append(row_dict)
     else:
         rows = []
         flash("No data available or error loading data", "warning")
@@ -451,7 +463,8 @@ def index():
 @app.route('/generate', methods=['POST'])
 def generate_document():
     try:
-        row_index = int(request.form.get('row_index'))
+        # FIXED: Get the original index instead of the display index
+        original_index = int(request.form.get('original_index'))
         doc_type = request.form.get('doc_type')
         
         df = load_data()
@@ -459,16 +472,17 @@ def generate_document():
             flash("Error loading Excel file", "error")
             return redirect(url_for('index'))
         
-        selected_row = df.iloc[row_index]
+        # Use the original index to get the correct row
+        selected_row = df.iloc[original_index]
         is_male = get_gender_value(selected_row)
         
-        # Determine template and filename
+        # Determine template and filename using original index
         if doc_type == 'baptism':
             template = 'baptisim_template_m.docx' if is_male else 'baptisim_template_f.docx'
-            filename = f"معمودية{row_index + 1}.docx"
+            filename = f"معمودية{original_index + 1}.docx"
         else:  # release
             template = 'release_situation_m.docx' if is_male else 'release_situation_f.docx'
-            filename = f"اطلاق حال{row_index + 1}.docx"
+            filename = f"اطلاق حال{original_index + 1}.docx"
         
         template_path = os.path.join(app.config['TEMPLATE_DIR'], template)
         output_path = os.path.join(app.config['OUTPUT_DIR'], filename)
