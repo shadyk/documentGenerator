@@ -235,4 +235,32 @@
                         </td>
                         <td>{{ row.get('Birth Date', row.get('تاريخ الميلاد', 'غير محدد')) }}</td>
                         <td>
-                            <div class="
+                            <div class="btn-group">
+                                <form method="POST" action="/generate" style="display: inline;">
+                                    <input type="hidden" name="original_index" value="{{ row._original_index }}">
+                                    <input type="hidden" name="doc_type" value="baptism">
+                                    <button type="submit" class="btn btn-baptism">معمودية</button>
+                                </form>
+                                <form method="POST" action="/generate" style="display: inline;">
+                                    <input type="hidden" name="original_index" value="{{ row._original_index }}">
+                                    <input type="hidden" name="doc_type" value="release">
+                                    <button type="submit" class="btn btn-release">إطلاق حال</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="no-data">
+                {% if search_term %}
+                    لم يتم العثور على نتائج للبحث "{{ search_term }}"
+                {% else %}
+                    لا توجد بيانات متاحة
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
